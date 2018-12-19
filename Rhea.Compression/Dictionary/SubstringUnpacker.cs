@@ -13,64 +13,64 @@ namespace Rhea.Compression.Dictionary
 
     public class SubstringUnpacker
     {
-        private readonly byte[] dictionary;
-        private MemoryStream buffer = new MemoryStream();
+        private readonly byte[] _dictionary;
+        private readonly MemoryStream _buffer = new MemoryStream();
 
         public SubstringUnpacker(byte[] dictionary)
         {
-            this.dictionary = dictionary ?? new byte[0];
+            _dictionary = dictionary ?? Array.Empty<byte>();
         }
 
         public void Reset()
         {
-            buffer.SetLength(0);
+            _buffer.SetLength(0);
         }
 
         public byte[] UncompressedData()
         {
-	        return buffer.ToArray();
+	        return _buffer.ToArray();
         } 
 
         public void EncodeLiteral(byte aByte)
         {
-            buffer.WriteByte(aByte);
+            _buffer.WriteByte(aByte);
         }
 
         public void EncodeSubstring(int offset, int length)
         {
-            var currentIndex = (int)buffer.Length;
+            var currentIndex = (int)_buffer.Length;
             if (currentIndex + offset < 0)
             {
-                int startDict = currentIndex + offset + dictionary.Length;
+                int startDict = currentIndex + offset + _dictionary.Length;
                 int endDict = startDict + length;
                 int end = 0;
 
-                if (endDict > dictionary.Length)
+                if (endDict > _dictionary.Length)
                 {
-                    end = endDict - dictionary.Length;
-                    endDict = dictionary.Length;
+                    end = endDict - _dictionary.Length;
+                    endDict = _dictionary.Length;
                 }
 
                 if (endDict - startDict > 0)
                 {
-                    buffer.Write(dictionary, startDict, endDict - startDict);
+                    _buffer.Write(_dictionary, startDict, endDict - startDict);
                 }
 
                 if (end > 0)
                 {
-                    var bytes = buffer.GetBuffer();
+                    var bytes = _buffer.GetBuffer();
                     for (int i = 0; i < end; i++)
                     {
-                        buffer.WriteByte(bytes[i]);
+                        _buffer.WriteByte(bytes[i]);
                     }
                 }
             }
             else
             {
-                var bytes = buffer.GetBuffer();
+                var bytes = _buffer.GetBuffer();
                 for (int i = 0; i < length; i++)
                 {
-                    buffer.WriteByte(bytes[i + currentIndex + offset]);
+                    _buffer.WriteByte(bytes[i + currentIndex + offset]);
                 }
             }
         }

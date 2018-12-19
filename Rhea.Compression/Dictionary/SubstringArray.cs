@@ -108,7 +108,7 @@ namespace Rhea.Compression.Dictionary
         {
             if (i >= capacity)
             {
-                int growBy = (((i - capacity)/(8*1024)) + 1)*8*1024;
+                int growBy = (((i - capacity) / (8 * 1024)) + 1) * 8 * 1024;
                 // Since this array is going to be VERY big, don't double.        
 
                 var newindex = new int[indexes.Length + growBy];
@@ -196,7 +196,7 @@ namespace Rhea.Compression.Dictionary
             {
                 return 0;
             }
-            return (100*count*(length - 3))/length;
+            return (100 * count * (length - 3)) / length;
         }
     }
 }

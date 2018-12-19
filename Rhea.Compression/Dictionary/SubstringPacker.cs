@@ -11,25 +11,32 @@ namespace Rhea.Compression.Dictionary
 
     public class SubstringPacker
     {
-        private static int MinimumMatchLength = PrefixHash.PrefixLength;
+        private static readonly int MinimumMatchLength = PrefixHash.PrefixLength;
 
-        private byte[] dictionary;
-        private PrefixHash dictHash;
+        private readonly byte[] _dictionary;
+        private readonly PrefixHash _dictHash;
 
         public SubstringPacker(byte[] dictionary)
         {
-            this.dictionary = dictionary = dictionary ?? new byte[0];
-            dictHash = new PrefixHash(dictionary, true);
+            _dictionary = dictionary = dictionary ?? new byte[0];
+            _dictHash = new PrefixHash(dictionary, true);
         }
 
-        public void Pack(byte[] rawBytes, IPackerOutput packerOutput, Object consumerContext)
+#if NETSTANDARD2_1 || NETCOREAPP2_1
+        public void Pack(ReadOnlyMemory<byte> bytes, IPackerOutput packerOutput, object consumerContext)
+        {
+            var rawBytes = bytes.Span;
+            var hash = new PrefixHash(bytes, false);
+#else
+        public void Pack(byte[] rawBytes, IPackerOutput packerOutput, object consumerContext)
         {
             var hash = new PrefixHash(rawBytes, false);
-            int dictLen = dictionary.Length;
+#endif
+            int dictLen = _dictionary.Length;
 
             int previousMatchIndex = 0;
             int previousMatchLength = 0;
-
+            
             int curr, count;
             for (curr = 0, count = rawBytes.Length; curr < count; curr++)
             {
@@ -38,7 +45,7 @@ namespace Rhea.Compression.Dictionary
 
                 if (curr + PrefixHash.PrefixLength - 1 < count)
                 {
-                    PrefixHash.Match match = dictHash.GetBestMatch(curr, rawBytes);
+                    PrefixHash.Match match = _dictHash.GetBestMatch(curr, rawBytes);
                     bestMatchIndex = match.BestMatchIndex;
                     bestMatchLength = match.BestMatchLength;
 

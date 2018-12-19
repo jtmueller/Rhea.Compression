@@ -27,10 +27,10 @@ namespace Rhea.Compression.Huffman
             while (bitIndex != 35)
             {
                 byte currentByte = reader.ReadByte();
-                returnValue |= ((int)currentByte & (int)SByte.MaxValue) << bitIndex;
+                returnValue |= (currentByte & sbyte.MaxValue) << bitIndex;
                 bitIndex += 7;
 
-                if (((int)currentByte & 128) == 0)
+                if ((currentByte & 128) == 0)
                     return returnValue;
             }
 

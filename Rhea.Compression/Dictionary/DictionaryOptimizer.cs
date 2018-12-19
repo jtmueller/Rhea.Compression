@@ -69,8 +69,8 @@ namespace Rhea.Compression.Dictionary
         public byte[] Optimize(int desiredLength)
         {
             bytes = stream.ToArray();
-            suffixArray = SuffixArray.computeSuffixArray(bytes);
-            lcp = SuffixArray.computeLCP(bytes, suffixArray);
+            suffixArray = SuffixArray.ComputeSuffixArray(bytes);
+            lcp = SuffixArray.ComputeLCP(bytes, suffixArray);
             ComputeSubstrings();
             return Pack(desiredLength);
         }

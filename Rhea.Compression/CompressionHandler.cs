@@ -3,6 +3,11 @@ using System.Text;
 using Rhea.Compression.Debugging;
 using Rhea.Compression.Dictionary;
 using Rhea.Compression.Huffman;
+using System;
+#if NETSTANDARD2_1 || NETCOREAPP2_1
+using System.Buffers;
+#endif
+
 
 namespace Rhea.Compression
 {
@@ -35,9 +40,7 @@ namespace Rhea.Compression
                     throw new InvalidDataException("Not a known version");
 
                 var dicLen = br.Read7BitEncodedInt();
-
                 var readBytes = br.ReadBytes(dicLen);
-
                 var packer = HuffmanPacker.Load(br);
 
                 return new CompressionHandler(readBytes, packer);
@@ -53,9 +56,49 @@ namespace Rhea.Compression
 
         public int Compress(string input, Stream output)
         {
+#if NETSTANDARD2_1 || NETCOREAPP2_1
+            var encoding = Encoding.UTF8;
+            var maxBytes = encoding.GetMaxByteCount(input.Length);
+            using (var memoryHandle = MemoryPool<byte>.Shared.Rent(maxBytes))
+            {
+                var bytes = memoryHandle.Memory;
+                var encodedBytes = encoding.GetBytes(input, bytes.Span);
+                return Compress(bytes.Slice(0, encodedBytes), output);
+            }
+#else
             return Compress(Encoding.UTF8.GetBytes(input), output);
+#endif
         }
 
+#if NETSTANDARD2_1 || NETCOREAPP2_1
+        public int Compress(ReadOnlySpan<char> input, Stream output)
+        {
+            var encoding = Encoding.UTF8;
+            var maxBytes = encoding.GetMaxByteCount(input.Length);
+            using (var memoryHandle = MemoryPool<byte>.Shared.Rent(maxBytes))
+            {
+                var bytes = memoryHandle.Memory;
+                var encodedBytes = encoding.GetBytes(input, bytes.Span);
+                return Compress(bytes.Slice(0, encodedBytes), output);
+            }
+        }
+#endif
+
+#if NETSTANDARD2_1 || NETCOREAPP2_1
+        public string CompressDebug(ReadOnlySpan<char> input)
+        {
+            var encoding = Encoding.UTF8;
+            var maxBytes = encoding.GetMaxByteCount(input.Length);
+            using (var memoryHandle = MemoryPool<byte>.Shared.Rent(maxBytes))
+            {
+                var bytes = memoryHandle.Memory;
+                var encodedBytes = encoding.GetBytes(input, bytes.Span);
+                var consumerContext = new StringWriter();
+                _substringPacker.Pack(bytes.Slice(0, encodedBytes), new DebugPackerOutput(), consumerContext);
+                return consumerContext.GetStringBuilder().ToString();
+            }
+        }
+#else
         public string CompressDebug(string input)
         {
             var bytes = Encoding.UTF8.GetBytes(input);
@@ -63,9 +106,13 @@ namespace Rhea.Compression
             _substringPacker.Pack(bytes, new DebugPackerOutput(), consumerContext);
             return consumerContext.GetStringBuilder().ToString();
         }
+#endif
 
-
+#if NETSTANDARD2_1 || NETCOREAPP2_1
+        public int Compress(ReadOnlyMemory<byte> input, Stream output)
+#else
         public int Compress(byte[] input, Stream output)
+#endif
         {
             using (var outputBitStream = new OutputBitStream(output, leaveOpen: true))
             {

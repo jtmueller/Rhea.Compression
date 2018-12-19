@@ -9,14 +9,10 @@ namespace Rhea.Compression.Huffman
 		private readonly bool _leaveOpen;
 		private int _count;
 		private byte _buffer;
-		private int _length;
 
-		public int Length
-		{
-			get { return _length; }
-		}
+        public int Length { get; private set; }
 
-		public OutputBitStream(Stream stream, bool leaveOpen = false)
+        public OutputBitStream(Stream stream, bool leaveOpen = false)
 		{
 			_stream = stream;
 			_leaveOpen = leaveOpen;
@@ -24,7 +20,7 @@ namespace Rhea.Compression.Huffman
 
 		public void Write(bool bit)
 		{
-			_length++;
+			Length++;
 			if (_count == 8)
 				Flush();
 
