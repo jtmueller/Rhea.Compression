@@ -30,3 +30,4 @@ Thumbs.db
 */connString.config
 Logs/
 packages/
+/.vs/

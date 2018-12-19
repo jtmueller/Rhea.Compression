@@ -42,7 +42,7 @@ namespace Rhea.Tryouts
             int count = 0;
             foreach (var s in json)
             {
-                if (count++%1000 == 0)
+                if (count++ % 1000 == 0)
                     Console.WriteLine(count);
                 size += s.Length;
                 ms.SetLength(0);
@@ -55,7 +55,7 @@ namespace Rhea.Tryouts
 
             for (int i = 0; i < items.Count; i++)
             {
-                if(count-- % 1000 == 0)
+                if (count-- % 1000 == 0)
                     Console.WriteLine(count);
                 var memoryStream = new MemoryStream(items[i]);
                 var decompress = compressionHandler.Decompress(memoryStream);
