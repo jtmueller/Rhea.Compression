@@ -40,29 +40,34 @@ namespace Rhea.Compression
             this.offsets = offsets;
         }
 
-        public void EncodeLiteral(byte aByte, object context)
+        public void EncodeLiteral(byte aByte, object? context)
         {
-            symbols.Write(aByte, (OutputBitStream)context);
+            if (context is OutputBitStream outputBitStream)
+                symbols.Write(aByte, outputBitStream);
         }
 
-        public void EncodeSubstring(int offset, int length, object context)
+        public void EncodeSubstring(int offset, int length, object? context)
         {
-            var outputBitStream = (OutputBitStream)context;
-            symbols.Write(length + 256, outputBitStream);
-
-            offset = -offset;
-            for (int i = 0; i < offsets.Length; i++)
+            if (context is OutputBitStream outputBitStream)
             {
-                var offsetNibble = (offset >> (i * 4)) & 0xf;
-                offsets[i].Write(offsetNibble, outputBitStream);
+                symbols.Write(length + 256, outputBitStream);
+
+                offset = -offset;
+                for (int i = 0; i < offsets.Length; i++)
+                {
+                    var offsetNibble = (offset >> (i * 4)) & 0xf;
+                    offsets[i].Write(offsetNibble, outputBitStream);
+                }
             }
         }
 
-        public void EndEncoding(object context)
+        public void EndEncoding(object? context)
         {
-            var outputBitStream = (OutputBitStream)context;
-            symbols.Write(EofMarker, outputBitStream);
-            outputBitStream.Flush();
+            if (context is OutputBitStream outputBitStream)
+            {
+                symbols.Write(EofMarker, outputBitStream);
+                outputBitStream.Flush();
+            }
         }
 
         public void Unpack(InputBitStream intputBitStream, SubstringUnpacker unpacker)

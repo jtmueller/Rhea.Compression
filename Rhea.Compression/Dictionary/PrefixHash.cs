@@ -13,19 +13,11 @@ namespace Rhea.Compression.Dictionary
     {
         public static int PrefixLength = 4;
 
-#if NETSTANDARD2_1 || NETCOREAPP2_1
         private readonly ReadOnlyMemory<byte> _buffer;
-#else
-        private readonly byte[] _buffer;
-#endif
         private readonly int[] _hash;
         private readonly int[] _heap;
 
-#if NETSTANDARD2_1 || NETCOREAPP2_1
         public PrefixHash(ReadOnlyMemory<byte> buf, bool addToHash)
-#else
-        public PrefixHash(byte[] buf, bool addToHash)
-#endif
         {
             _buffer = buf;
             _hash = new int[(int)(1.75 * buf.Length)];
@@ -66,11 +58,7 @@ namespace Rhea.Compression.Dictionary
             }
         }
 
-#if NETSTANDARD2_1 || NETCOREAPP2_1
         private int HashIndex(ReadOnlySpan<byte> buf, int i)
-#else
-        private int HashIndex(byte[] buf, int i)
-#endif
         {
             int code = (buf[i] & 0xff) | ((buf[i + 1] & 0xff) << 8) | ((buf[i + 2] & 0xff) << 16) |
                        ((buf[i + 3] & 0xff) << 24);
@@ -79,20 +67,12 @@ namespace Rhea.Compression.Dictionary
 
         public void Put(int index)
         {
-#if NETSTANDARD2_1 || NETCOREAPP2_1
             int hi = HashIndex(_buffer.Span, index);
-#else
-            int hi = HashIndex(_buffer, index);
-#endif
             _heap[index] = _hash[hi];
             _hash[hi] = index;
         }
 
-#if NETSTANDARD2_1 || NETCOREAPP2_1
         public Match GetBestMatch(int index, ReadOnlySpan<byte> targetBuf)
-#else
-        public Match GetBestMatch(int index, byte[] targetBuf)
-#endif
         {
             int bestMatchIndex = 0;
             int bestMatchLength = 0;
@@ -104,11 +84,7 @@ namespace Rhea.Compression.Dictionary
                 return new Match(0, 0);
             }
 
-#if NETSTANDARD2_1 || NETCOREAPP2_1
-            ReadOnlySpan<byte> bufferBytes = _buffer.Span;
-#else
-            byte[] bufferBytes = _buffer;
-#endif
+            var bufferBytes = _buffer.Span;
             int targetBufLen = targetBuf.Length;
 
             int maxLimit = Math.Min(255, targetBufLen - index);
@@ -118,11 +94,7 @@ namespace Rhea.Compression.Dictionary
             while (candidateIndex >= 0)
             {
                 int distance;
-#if NETSTANDARD2_1 || NETCOREAPP2_1
                 if (targetBuf.Length != bufferBytes.Length || !targetBuf.SequenceEqual(bufferBytes))
-#else
-                if (targetBuf != bufferBytes)
-#endif
                 {
                     distance = index + bufLen - candidateIndex;
                 }

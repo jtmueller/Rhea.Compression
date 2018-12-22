@@ -43,11 +43,11 @@ namespace Rhea.Compression.Huffman
 
         public IEnumerable<int> Read(InputBitStream input)
         {
-            var curr = _root;
+            HuffmanNode? curr = _root;
             while (input.MoveNext())
             {
-                curr = input.Current ? curr.Right : curr.Left;
-                if (curr.IsBranch)
+                curr = input.Current ? curr?.Right : curr?.Left;
+                if (curr is null || curr.IsBranch == true)
                     continue;
                 yield return curr.Symbol;
                 curr = _root;
@@ -59,8 +59,14 @@ namespace Rhea.Compression.Huffman
             DumpNode(_root, "root", 0, writer);
         }
 
-        private void DumpNode(HuffmanNode node, string tag, int i, TextWriter writer)
+        private void DumpNode(HuffmanNode? node, string tag, int i, TextWriter writer)
         {
+            if (node is null)
+            {
+                writer.Write("NULL NODE");
+                return;
+            }
+
             for (int j = 0; j < i; j++)
             {
                 writer.Write("    ");

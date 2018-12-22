@@ -8,22 +8,24 @@ namespace Rhea.Compression.Debugging
     {
         readonly byte[] buffer = new byte[128];
         private int bufPos;
-        public void EncodeLiteral(byte aByte, object context)
+        public void EncodeLiteral(byte aByte, object? context)
         {
             if (bufPos <= buffer.Length)
             {
                 buffer[bufPos++] = aByte;
                 return;
             }
-            var textWriter = (TextWriter)context;
-            FlushBuffer(textWriter);
+            if (context is TextWriter textWriter)
+                FlushBuffer(textWriter);
         }
 
-        public void EncodeSubstring(int offset, int length, object context)
+        public void EncodeSubstring(int offset, int length, object? context)
         {
-            var textWriter = (TextWriter)context;
-            FlushBuffer(textWriter);
-            textWriter.Write("<" + offset + "," + length + ">");
+            if (context is TextWriter textWriter)
+            {
+                FlushBuffer(textWriter);
+                textWriter.Write("<" + offset + "," + length + ">");
+            }
         }
 
         private void FlushBuffer(TextWriter textWriter)
@@ -35,10 +37,10 @@ namespace Rhea.Compression.Debugging
             bufPos = 0;
         }
 
-        public void EndEncoding(object context)
+        public void EndEncoding(object? context)
         {
-            var textWriter = (TextWriter)context;
-            FlushBuffer(textWriter);
+            if (context is TextWriter textWriter)
+                FlushBuffer(textWriter);
         }
     }
 }

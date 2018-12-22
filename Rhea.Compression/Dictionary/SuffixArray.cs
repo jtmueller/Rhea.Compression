@@ -26,6 +26,7 @@
  */
 
 using System;
+using System.Buffers;
 using System.IO;
 using System.Text;
 
@@ -41,16 +42,17 @@ namespace Rhea.Compression.Dictionary
             return t >= n ? t - n : t;
         }
 
-        public static int[] ComputeSuffixArray(byte[] bytes)
+        public static int[] ComputeSuffixArray(ReadOnlySpan<byte> bytes)
         {
-            byte[] buf = bytes;
+            var buf = bytes;
             int n = bytes.Length;
             int[] p = new int[n + 1];
 
-            int[] a, buckets = new int[256 * 256];
+            int[] bucketsBuffer = ArrayPool<int>.Shared.Rent(256 * 256);
+            var buckets = bucketsBuffer.AsSpan(0, 256 * 256);
             int i, last, cum, c, cc, ncc, lab, nbuck;
 
-            a = new int[n + 1];
+            int[] a = new int[n + 1];
 
             for (int j = 0; j < buckets.Length; j++)
             {
@@ -99,6 +101,8 @@ namespace Rhea.Compression.Dictionary
                 }
                 lab = cum;
             }
+
+            ArrayPool<int>.Shared.Return(bucketsBuffer);
 
             Ssortit(a, p, n + 1, 2, i, nbuck);
             return p;
@@ -286,10 +290,10 @@ namespace Rhea.Compression.Dictionary
                 Qsort2(a, ai + n - r, asucc, r);
         }
 
-        public static int[] ComputeLCP(byte[] bytes, int[] suffixArray)
+        public static int[] ComputeLCP(ReadOnlySpan<byte> bytes, int[] suffixArray)
         {
             int[] a = suffixArray;
-            byte[] s = bytes;
+            var s = bytes;
             int n = suffixArray.Length;
             int[] lcp = new int[n];
 

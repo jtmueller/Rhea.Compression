@@ -8,7 +8,6 @@ using System;
 
 namespace Rhea.Compression.Dictionary
 {
-
     public class SubstringPacker
     {
         private static readonly int MinimumMatchLength = PrefixHash.PrefixLength;
@@ -22,16 +21,13 @@ namespace Rhea.Compression.Dictionary
             _dictHash = new PrefixHash(dictionary, true);
         }
 
-#if NETSTANDARD2_1 || NETCOREAPP2_1
-        public void Pack(ReadOnlyMemory<byte> bytes, IPackerOutput packerOutput, object consumerContext)
+        public void Pack(byte[] rawBytes, IPackerOutput packerOutput, object? consumerContext)
+            => Pack(rawBytes.AsMemory(), packerOutput, consumerContext);
+
+        public void Pack(ReadOnlyMemory<byte> bytes, IPackerOutput packerOutput, object? consumerContext)
         {
             var rawBytes = bytes.Span;
             var hash = new PrefixHash(bytes, false);
-#else
-        public void Pack(byte[] rawBytes, IPackerOutput packerOutput, object consumerContext)
-        {
-            var hash = new PrefixHash(rawBytes, false);
-#endif
             int dictLen = _dictionary.Length;
 
             int previousMatchIndex = 0;

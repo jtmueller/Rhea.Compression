@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -21,7 +20,7 @@ namespace Rhea.Compression.Huffman
 
             while (leaves.Count + branches.Count > 1)
             {
-                Queue<HuffmanNode> q1 = null, q2 = null;
+                Queue<HuffmanNode>? q1 = null, q2 = null;
                 int candidateWeight = int.MaxValue;
 
                 if (leaves.Count > 0 && branches.Count > 0)

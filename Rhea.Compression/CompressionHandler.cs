@@ -1,12 +1,10 @@
-﻿using System.IO;
-using System.Text;
-using Rhea.Compression.Debugging;
+﻿using Rhea.Compression.Debugging;
 using Rhea.Compression.Dictionary;
 using Rhea.Compression.Huffman;
 using System;
-#if NETSTANDARD2_1 || NETCOREAPP2_1
 using System.Buffers;
-#endif
+using System.IO;
+using System.Text;
 
 
 namespace Rhea.Compression
@@ -108,11 +106,10 @@ namespace Rhea.Compression
         }
 #endif
 
-#if NETSTANDARD2_1 || NETCOREAPP2_1
-        public int Compress(ReadOnlyMemory<byte> input, Stream output)
-#else
         public int Compress(byte[] input, Stream output)
-#endif
+            => Compress(input.AsMemory(), output);
+
+        public int Compress(ReadOnlyMemory<byte> input, Stream output)
         {
             using (var outputBitStream = new OutputBitStream(output, leaveOpen: true))
             {

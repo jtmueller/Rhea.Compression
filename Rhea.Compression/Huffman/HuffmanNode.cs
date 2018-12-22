@@ -8,15 +8,16 @@ namespace Rhea.Compression.Huffman
         public readonly int Symbol;
         public readonly int Freq;
 
-        public HuffmanNode Parent;
-        public HuffmanNode Right;
-        public HuffmanNode Left;
+        public HuffmanNode? Parent;
+        public HuffmanNode? Right;
+        public HuffmanNode? Left;
         public Stack<bool> Bits;
 
         public HuffmanNode(int symbol, int freq)
         {
             Symbol = symbol;
             Freq = freq;
+            Bits = new Stack<bool>();
         }
 
         public bool IsBranch => Symbol == -1;
@@ -25,7 +26,7 @@ namespace Rhea.Compression.Huffman
         public void SetupBitPattern()
         {
             BitPattern = 0;
-            Bits = new Stack<bool>();
+            Bits.Clear();
 
             var curr = this;
             while (curr.Parent != null)
@@ -55,8 +56,8 @@ namespace Rhea.Compression.Huffman
                 BinaryWriterExtensions.Write7BitEncodedInt(writer, Symbol);
                 return;
             }
-            Left.Save(writer);
-            Right.Save(writer);
+            Left?.Save(writer);
+            Right?.Save(writer);
         }
 
         public static HuffmanNode Load(BinaryReader reader, Dictionary<int, HuffmanNode> leaves)

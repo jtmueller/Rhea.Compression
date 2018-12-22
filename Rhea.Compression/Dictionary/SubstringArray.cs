@@ -15,34 +15,35 @@
  */
 
 using System;
+using System.Buffers;
 
 namespace Rhea.Compression.Dictionary
 {
     public class SubstringArray
     {
-        private int capacity;
-        private int[] indexes;
-        private int[] lengths;
-        private int[] scores;
-        private int size;
+        private static ArrayPool<int> s_pool = ArrayPool<int>.Shared;
+
+        private int _capacity;
+        private int[] _indexes;
+        private int[] _lengths;
+        private int[] _scores;
+        private int _size;
 
         public SubstringArray(int capacity)
         {
-            this.capacity = capacity;
-            indexes = new int[capacity];
-            lengths = new int[capacity];
-            scores = new int[capacity];
+            _capacity = capacity;
+            _indexes = new int[capacity];
+            _lengths = new int[capacity];
+            _scores = new int[capacity];
         }
 
-        public int Size
-        {
-            get { return size; }
-        }
+        public int Size => _size;
 
         public void Sort()
         {
-            var histogram = new int[256];
-            var working = new SubstringArray(size);
+            var histogramBuffer = s_pool.Rent(256);
+            var histogram = histogramBuffer.AsSpan(0, 256);
+            var working = new SubstringArray(_size);
 
             for (int bitOffset = 0; bitOffset <= 24; bitOffset += 8)
             {
@@ -54,9 +55,9 @@ namespace Rhea.Compression.Dictionary
                     }
                 }
                 int i, count, rollingSum;
-                for (i = 0, count = size; i < count; i++)
+                for (i = 0, count = _size; i < count; i++)
                 {
-                    int sortValue = scores[i];
+                    int sortValue = _scores[i];
                     int sortByte = (sortValue >> bitOffset) & 0xff;
                     histogram[sortByte]++;
                 }
@@ -68,102 +69,103 @@ namespace Rhea.Compression.Dictionary
                     rollingSum += tmp;
                 }
 
-                for (i = 0, count = size; i < count; i++)
+                for (i = 0, count = _size; i < count; i++)
                 {
-                    int sortValue = scores[i];
+                    int sortValue = _scores[i];
                     int sortByte = (sortValue >> bitOffset) & 0xff;
                     int newOffset = histogram[sortByte]++;
-                    working.SetScore(newOffset, indexes[i], lengths[i], scores[i]);
+                    working.SetScore(newOffset, _indexes[i], _lengths[i], _scores[i]);
                 }
 
                 // swap (brain transplant) innards
-                int[] t = working.indexes;
-                working.indexes = indexes;
-                indexes = t;
+                int[] t = working._indexes;
+                working._indexes = _indexes;
+                _indexes = t;
 
-                t = working.lengths;
-                working.lengths = lengths;
-                lengths = t;
+                t = working._lengths;
+                working._lengths = _lengths;
+                _lengths = t;
 
-                t = working.scores;
-                working.scores = scores;
-                scores = t;
+                t = working._scores;
+                working._scores = _scores;
+                _scores = t;
 
-                size = working.size;
-                working.size = 0;
+                _size = working._size;
+                working._size = 0;
 
-                i = working.capacity;
-                working.capacity = capacity;
-                capacity = i;
+                i = working._capacity;
+                working._capacity = _capacity;
+                _capacity = i;
             }
+            s_pool.Return(histogramBuffer);
         }
 
 
         public int Add(int index, int length, int count)
         {
-            return SetScore(size, index, length, ComputeScore(length, count));
+            return SetScore(_size, index, length, ComputeScore(length, count));
         }
 
         public int SetScore(int i, int index, int length, int score)
         {
-            if (i >= capacity)
+            if (i >= _capacity)
             {
-                int growBy = (((i - capacity) / (8 * 1024)) + 1) * 8 * 1024;
+                int growBy = (((i - _capacity) / (8 * 1024)) + 1) * 8 * 1024;
                 // Since this array is going to be VERY big, don't double.        
 
-                var newindex = new int[indexes.Length + growBy];
-                Array.Copy(indexes, 0, newindex, 0, indexes.Length);
-                indexes = newindex;
+                var newindex = new int[_indexes.Length + growBy];
+                Array.Copy(_indexes, 0, newindex, 0, _indexes.Length);
+                _indexes = newindex;
 
-                var newlength = new int[lengths.Length + growBy];
-                Array.Copy(lengths, 0, newlength, 0, lengths.Length);
-                lengths = newlength;
+                var newlength = new int[_lengths.Length + growBy];
+                Array.Copy(_lengths, 0, newlength, 0, _lengths.Length);
+                _lengths = newlength;
 
-                var newscores = new int[scores.Length + growBy];
-                Array.Copy(scores, 0, newscores, 0, scores.Length);
-                scores = newscores;
+                var newscores = new int[_scores.Length + growBy];
+                Array.Copy(_scores, 0, newscores, 0, _scores.Length);
+                _scores = newscores;
 
-                capacity = indexes.Length;
+                _capacity = _indexes.Length;
             }
 
-            indexes[i] = index;
-            lengths[i] = length;
-            scores[i] = score;
+            _indexes[i] = index;
+            _lengths[i] = length;
+            _scores[i] = score;
 
-            size = Math.Max(i + 1, size);
+            _size = Math.Max(i + 1, _size);
 
             return i;
         }
 
         public void Remove(int i)
         {
-            Array.Copy(indexes, i + 1, indexes, i, size - i - 1);
-            Array.Copy(lengths, i + 1, lengths, i, size - i - 1);
-            Array.Copy(scores, i + 1, scores, i, size - i - 1);
-            size--;
+            Array.Copy(_indexes, i + 1, _indexes, i, _size - i - 1);
+            Array.Copy(_lengths, i + 1, _lengths, i, _size - i - 1);
+            Array.Copy(_scores, i + 1, _scores, i, _size - i - 1);
+            _size--;
         }
 
         public int Index(int i)
         {
-            return indexes[i];
+            return _indexes[i];
         }
 
         public int Length(int i)
         {
-            return lengths[i];
+            return _lengths[i];
         }
 
         public int Score(int i)
         {
-            return scores[i];
+            return _scores[i];
         }
 
         public int IndexOf(int s1, SubstringArray sa, int s2, byte[] s, int[] prefixes)
         {
-            int index1 = indexes[s1];
-            int length1 = lengths[s1];
-            int index2 = sa.indexes[s2];
-            int length2 = sa.lengths[s2];
+            int index1 = _indexes[s1];
+            int length1 = _lengths[s1];
+            int index2 = sa._indexes[s2];
+            int length2 = sa._lengths[s2];
 
             for (int i = prefixes[index1], n = prefixes[index1] + length1 - length2 + 1; i < n; i++)
             {

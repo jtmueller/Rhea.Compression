@@ -47,12 +47,12 @@ namespace Rhea.Compression
                 new int[16]
             };
 
-            public void EncodeLiteral(byte aByte, object context)
+            public void EncodeLiteral(byte aByte, object? context)
             {
                 symbols[aByte]++;
             }
 
-            public void EncodeSubstring(int offset, int length, object context)
+            public void EncodeSubstring(int offset, int length, object? context)
             {
                 if (length < 1 || length > 255)
                     throw new ArgumentException("invalid length (1 - 255)", "length");
@@ -69,7 +69,7 @@ namespace Rhea.Compression
                 }
             }
 
-            public void EndEncoding(object context)
+            public void EndEncoding(object? context)
             {
                 symbols[symbols.Length - 1]++; // eof marker
             }
