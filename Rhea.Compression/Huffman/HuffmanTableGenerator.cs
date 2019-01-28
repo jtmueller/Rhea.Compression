@@ -1,3 +1,5 @@
+using Collections.Pooled;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -5,7 +7,7 @@ namespace Rhea.Compression.Huffman
 {
     public class HuffmanTableGenerator
     {
-        private readonly Dictionary<int, HuffmanNode> _leaves = new Dictionary<int, HuffmanNode>();
+        private readonly PooledDictionary<int, HuffmanNode> _leaves = new PooledDictionary<int, HuffmanNode>();
 
         public void Add(int symbol, int freq)
         {

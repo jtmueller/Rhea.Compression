@@ -19,9 +19,9 @@ using System.Buffers;
 
 namespace Rhea.Compression.Dictionary
 {
-    public class SubstringArray
+    public class SubstringArray : IDisposable
     {
-        private static ArrayPool<int> s_pool = ArrayPool<int>.Shared;
+        private static readonly ArrayPool<int> s_pool = ArrayPool<int>.Shared;
 
         private int _capacity;
         private int[] _indexes;
@@ -31,10 +31,10 @@ namespace Rhea.Compression.Dictionary
 
         public SubstringArray(int capacity)
         {
-            _capacity = capacity;
-            _indexes = new int[capacity];
-            _lengths = new int[capacity];
-            _scores = new int[capacity];
+            _indexes = s_pool.Rent(capacity);
+            _lengths = s_pool.Rent(capacity);
+            _scores = s_pool.Rent(capacity);
+            _capacity = Math.Min(Math.Min(_indexes.Length, _lengths.Length), _scores.Length);
         }
 
         public int Size => _size;
@@ -45,59 +45,66 @@ namespace Rhea.Compression.Dictionary
             var histogram = histogramBuffer.AsSpan(0, 256);
             var working = new SubstringArray(_size);
 
-            for (int bitOffset = 0; bitOffset <= 24; bitOffset += 8)
+            try
             {
-                if (bitOffset > 0)
+                for (int bitOffset = 0; bitOffset <= 24; bitOffset += 8)
                 {
-                    for (int j = 0; j < histogram.Length; j++)
+                    if (bitOffset > 0)
                     {
-                        histogram[j] = 0;
+                        for (int j = 0; j < histogram.Length; j++)
+                        {
+                            histogram[j] = 0;
+                        }
                     }
+                    int i, count, rollingSum;
+                    for (i = 0, count = _size; i < count; i++)
+                    {
+                        int sortValue = _scores[i];
+                        int sortByte = (sortValue >> bitOffset) & 0xff;
+                        histogram[sortByte]++;
+                    }
+
+                    for (i = 0, count = histogram.Length, rollingSum = 0; i < count; i++)
+                    {
+                        int tmp = histogram[i];
+                        histogram[i] = rollingSum;
+                        rollingSum += tmp;
+                    }
+
+                    for (i = 0, count = _size; i < count; i++)
+                    {
+                        int sortValue = _scores[i];
+                        int sortByte = (sortValue >> bitOffset) & 0xff;
+                        int newOffset = histogram[sortByte]++;
+                        working.SetScore(newOffset, _indexes[i], _lengths[i], _scores[i]);
+                    }
+
+                    // swap (brain transplant) innards
+                    int[] t = working._indexes;
+                    working._indexes = _indexes;
+                    _indexes = t;
+
+                    t = working._lengths;
+                    working._lengths = _lengths;
+                    _lengths = t;
+
+                    t = working._scores;
+                    working._scores = _scores;
+                    _scores = t;
+
+                    _size = working._size;
+                    working._size = 0;
+
+                    i = working._capacity;
+                    working._capacity = _capacity;
+                    _capacity = i;
                 }
-                int i, count, rollingSum;
-                for (i = 0, count = _size; i < count; i++)
-                {
-                    int sortValue = _scores[i];
-                    int sortByte = (sortValue >> bitOffset) & 0xff;
-                    histogram[sortByte]++;
-                }
-
-                for (i = 0, count = histogram.Length, rollingSum = 0; i < count; i++)
-                {
-                    int tmp = histogram[i];
-                    histogram[i] = rollingSum;
-                    rollingSum += tmp;
-                }
-
-                for (i = 0, count = _size; i < count; i++)
-                {
-                    int sortValue = _scores[i];
-                    int sortByte = (sortValue >> bitOffset) & 0xff;
-                    int newOffset = histogram[sortByte]++;
-                    working.SetScore(newOffset, _indexes[i], _lengths[i], _scores[i]);
-                }
-
-                // swap (brain transplant) innards
-                int[] t = working._indexes;
-                working._indexes = _indexes;
-                _indexes = t;
-
-                t = working._lengths;
-                working._lengths = _lengths;
-                _lengths = t;
-
-                t = working._scores;
-                working._scores = _scores;
-                _scores = t;
-
-                _size = working._size;
-                working._size = 0;
-
-                i = working._capacity;
-                working._capacity = _capacity;
-                _capacity = i;
             }
-            s_pool.Return(histogramBuffer);
+            finally
+            {
+                s_pool.Return(histogramBuffer);
+                working.Dispose();
+            }
         }
 
 
@@ -113,19 +120,22 @@ namespace Rhea.Compression.Dictionary
                 int growBy = (((i - _capacity) / (8 * 1024)) + 1) * 8 * 1024;
                 // Since this array is going to be VERY big, don't double.        
 
-                var newindex = new int[_indexes.Length + growBy];
-                Array.Copy(_indexes, 0, newindex, 0, _indexes.Length);
+                var newindex = s_pool.Rent(_capacity + growBy);
+                Array.Copy(_indexes, 0, newindex, 0, _capacity);
+                s_pool.Return(_indexes);
                 _indexes = newindex;
 
-                var newlength = new int[_lengths.Length + growBy];
-                Array.Copy(_lengths, 0, newlength, 0, _lengths.Length);
+                var newlength = s_pool.Rent(_capacity + growBy);
+                Array.Copy(_lengths, 0, newlength, 0, _capacity);
+                s_pool.Return(_lengths);
                 _lengths = newlength;
 
-                var newscores = new int[_scores.Length + growBy];
-                Array.Copy(_scores, 0, newscores, 0, _scores.Length);
+                var newscores = s_pool.Rent(_capacity + growBy);
+                Array.Copy(_scores, 0, newscores, 0, _capacity);
+                s_pool.Return(_scores);
                 _scores = newscores;
 
-                _capacity = _indexes.Length;
+                _capacity = Math.Min(Math.Min(_indexes.Length, _lengths.Length), _scores.Length);
             }
 
             _indexes[i] = index;
@@ -160,7 +170,7 @@ namespace Rhea.Compression.Dictionary
             return _scores[i];
         }
 
-        public int IndexOf(int s1, SubstringArray sa, int s2, byte[] s, int[] prefixes)
+        public int IndexOf(int s1, SubstringArray sa, int s2, ReadOnlySpan<byte> s, Span<int> prefixes)
         {
             int index1 = _indexes[s1];
             int length1 = _lengths[s1];
@@ -187,10 +197,10 @@ namespace Rhea.Compression.Dictionary
         }
 
         /*
-     * Substring of length n occurring m times.  We will reduce output by n*m characters, and add 3*m offsets/lengths.  So net benefit is (n - 3)*m.
-     * Costs n characters to include in the compression dictionary, so compute a "per character consumed in the compression dictionary" benefit.
-     * score = m*(n-3)/n
-     */
+         * Substring of length n occurring m times.  We will reduce output by n*m characters, and add 3*m offsets/lengths.  So net benefit is (n - 3)*m.
+         * Costs n characters to include in the compression dictionary, so compute a "per character consumed in the compression dictionary" benefit.
+         * score = m*(n-3)/n
+         */
 
         private int ComputeScore(int length, int count)
         {
@@ -199,6 +209,13 @@ namespace Rhea.Compression.Dictionary
                 return 0;
             }
             return (100 * count * (length - 3)) / length;
+        }
+
+        public void Dispose()
+        {
+            s_pool.Return(_indexes);
+            s_pool.Return(_scores);
+            s_pool.Return(_lengths);
         }
     }
 }

@@ -1,11 +1,12 @@
 ﻿using Rhea.Compression.Dictionary;
 using Rhea.Compression.Huffman;
+using System;
 using System.IO;
 using System.Linq;
 
 namespace Rhea.Compression
 {
-    public class HuffmanPacker : IPackerOutput
+    public class HuffmanPacker : IPackerOutput, IDisposable
     {
         private readonly HuffmanTable symbols;
         private readonly HuffmanTable[] offsets;
@@ -100,6 +101,13 @@ namespace Rhea.Compression
             }
             if (hasEof == false)
                 throw new InvalidDataException("End of stream before EOF marker");
+        }
+
+        public void Dispose()
+        {
+            symbols?.Dispose();
+            foreach (var offset in offsets)
+                offset?.Dispose();
         }
     }
 }

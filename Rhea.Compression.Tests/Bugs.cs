@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
+﻿using System.IO;
 using System.Text;
-using System.Threading.Tasks;
 using Xunit;
 
 namespace Rhea.Compression.Tests
@@ -39,30 +34,31 @@ namespace Rhea.Compression.Tests
 
             };
 
-            var trainer = new CompressionTrainer();
-
-            foreach (var doc in docs)
+            using (var trainer = new CompressionTrainer())
             {
-                trainer.TrainOn(doc);
+                foreach (var doc in docs)
+                {
+                    trainer.TrainOn(doc);
+                }
+
+                using (var compressionHandler = trainer.CreateHandler())
+                using (var memoryStream = new MemoryStream())
+                {
+                    var text = "{'id':11111,'name':'Albert Perry','country':'Congo, Republic of','email':'aperry@demimbu.info'}";
+                    compressionHandler.Compress(text, memoryStream);
+                    var compressDebug = compressionHandler.CompressDebug(text);
+                    var d = compressionHandler.DecompressDebug(compressDebug);
+
+                    Assert.Equal(text, d);
+
+                    memoryStream.Position = 0;
+                    var result = compressionHandler.Decompress(memoryStream);
+
+                    var s = Encoding.UTF8.GetString(result);
+
+                    Assert.Equal(text, s);
+                }
             }
-
-            var compressionHandler = trainer.CreateHandler();
-
-            var memoryStream = new MemoryStream();
-            var text = "{'id':11111,'name':'Albert Perry','country':'Congo, Republic of','email':'aperry@demimbu.info'}";
-            compressionHandler.Compress(text,memoryStream);
-            var compressDebug = compressionHandler.CompressDebug(text);
-            var d = compressionHandler.DecompressDebug(compressDebug);
-
-            Assert.Equal(text, d);
-
-            memoryStream.Position = 0;
-            var result = compressionHandler.Decompress(memoryStream);
-
-            var s = Encoding.UTF8.GetString(result);
-
-            Assert.Equal(text, s);
         }
-
     }
 }

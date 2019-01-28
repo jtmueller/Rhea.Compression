@@ -1,9 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
+using Collections.Pooled;
 
 namespace Rhea.Compression.Huffman
 {
-    public class HuffmanNode
+    public class HuffmanNode : IDisposable
     {
         public readonly int Symbol;
         public readonly int Freq;
@@ -11,13 +13,13 @@ namespace Rhea.Compression.Huffman
         public HuffmanNode? Parent;
         public HuffmanNode? Right;
         public HuffmanNode? Left;
-        public Stack<bool> Bits;
+        public readonly PooledStack<bool> Bits;
 
         public HuffmanNode(int symbol, int freq)
         {
             Symbol = symbol;
             Freq = freq;
-            Bits = new Stack<bool>();
+            Bits = new PooledStack<bool>();
         }
 
         public bool IsBranch => Symbol == -1;
@@ -60,7 +62,7 @@ namespace Rhea.Compression.Huffman
             Right?.Save(writer);
         }
 
-        public static HuffmanNode Load(BinaryReader reader, Dictionary<int, HuffmanNode> leaves)
+        public static HuffmanNode Load(BinaryReader reader, IDictionary<int, HuffmanNode> leaves)
         {
             var branch = reader.ReadBoolean();
             if (branch == false)
@@ -80,6 +82,13 @@ namespace Rhea.Compression.Huffman
             left.Parent = parent;
             right.Parent = parent;
             return parent;
+        }
+
+        public void Dispose()
+        {
+            Bits.Dispose();
+            Left?.Dispose();
+            Right?.Dispose();
         }
     }
 }

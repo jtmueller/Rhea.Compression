@@ -1,14 +1,16 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
+using Collections.Pooled;
 
 namespace Rhea.Compression.Huffman
 {
-    public class HuffmanTable
+    public class HuffmanTable : IDisposable
     {
-        private readonly Dictionary<int, HuffmanNode> _leaves;
+        private readonly PooledDictionary<int, HuffmanNode> _leaves;
         private readonly HuffmanNode _root;
 
-        public HuffmanTable(Dictionary<int, HuffmanNode> leaves, HuffmanNode root)
+        public HuffmanTable(PooledDictionary<int, HuffmanNode> leaves, HuffmanNode root)
         {
             _leaves = leaves;
             _root = root;
@@ -16,7 +18,7 @@ namespace Rhea.Compression.Huffman
 
         public static HuffmanTable Load(BinaryReader reader)
         {
-            var leaves = new Dictionary<int, HuffmanNode>();
+            var leaves = new PooledDictionary<int, HuffmanNode>();
             var node = HuffmanNode.Load(reader, leaves);
 
             foreach (var huffmanNode in leaves.Values)
@@ -92,6 +94,12 @@ namespace Rhea.Compression.Huffman
                 return;
             DumpNode(node.Left, "left", i + 1, writer);
             DumpNode(node.Right, "right", i + 1, writer);
+        }
+
+        public void Dispose()
+        {
+            _leaves?.Dispose();
+            _root?.Dispose();
         }
     }
 }

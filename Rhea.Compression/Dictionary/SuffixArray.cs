@@ -35,6 +35,7 @@ namespace Rhea.Compression.Dictionary
     public class SuffixArray
     {
         private const int BUCK = int.MinValue;
+        private static readonly ArrayPool<int> s_pool = ArrayPool<int>.Shared;
 
         private static int Succ(int i, int h, int n)
         {
@@ -48,11 +49,12 @@ namespace Rhea.Compression.Dictionary
             int n = bytes.Length;
             int[] p = new int[n + 1];
 
-            int[] bucketsBuffer = ArrayPool<int>.Shared.Rent(256 * 256);
+            int[] bucketsBuffer = s_pool.Rent(256 * 256);
             var buckets = bucketsBuffer.AsSpan(0, 256 * 256);
             int i, last, cum, c, cc, ncc, lab, nbuck;
 
-            int[] a = new int[n + 1];
+            var aBuffer = s_pool.Rent(n + 1);
+            var a = aBuffer.AsSpan(0, n + 1);
 
             for (int j = 0; j < buckets.Length; j++)
             {
@@ -102,13 +104,14 @@ namespace Rhea.Compression.Dictionary
                 lab = cum;
             }
 
-            ArrayPool<int>.Shared.Return(bucketsBuffer);
-
+            s_pool.Return(bucketsBuffer);
             Ssortit(a, p, n + 1, 2, i, nbuck);
+            s_pool.Return(aBuffer);
+
             return p;
         }
 
-        private static int Ssortit(int[] a, int[] p, int n, int h, int pe, int nbuck)
+        private static int Ssortit(Span<int> a, Span<int> p, int n, int h, int pe, int nbuck)
         {
             int s, ss, packing, sorting;
             int v, sv, vv, packed, lab, i, pi;
@@ -182,14 +185,14 @@ namespace Rhea.Compression.Dictionary
             return v;
         }
 
-        private static void Swap2(int[] a, int ai, int[] b, int bi)
+        private static void Swap2(Span<int> a, int ai, Span<int> b, int bi)
         {
             int t = a[ai];
             a[ai] = b[bi];
             b[bi] = t;
         }
 
-        private static void VecSwap2(int[] a, int ai, int bi, int n)
+        private static void VecSwap2(Span<int> a, int ai, int bi, int n)
         {
             while (n-- > 0)
             {
@@ -199,7 +202,7 @@ namespace Rhea.Compression.Dictionary
             }
         }
 
-        private static int Med3(int[] a, int ai, int bi, int ci, int[] asucc)
+        private static int Med3(Span<int> a, int ai, int bi, int ci, Span<int> asucc)
         {
             int va, vb, vc;
 
@@ -212,7 +215,7 @@ namespace Rhea.Compression.Dictionary
                 : (vb > vc ? bi : (va < vc ? ai : ci));
         }
 
-        private static void Inssort(int[] a, int ai, int[] asucc, int n)
+        private static void Inssort(Span<int> a, int ai, Span<int> asucc, int n)
         {
             int pi, pj;
             for (pi = ai + 1; --n > 0; pi++)
@@ -224,7 +227,7 @@ namespace Rhea.Compression.Dictionary
                 }
         }
 
-        private static void Qsort2(int[] a, int ai, int[] asucc, int n)
+        private static void Qsort2(Span<int> a, int ai, Span<int> asucc, int n)
         {
             int d, r, partval;
             int pa, pb, pc, pd, pl, pm, pn;
@@ -290,15 +293,16 @@ namespace Rhea.Compression.Dictionary
                 Qsort2(a, ai + n - r, asucc, r);
         }
 
-        public static int[] ComputeLCP(ReadOnlySpan<byte> bytes, int[] suffixArray)
+        public static int[] ComputeLCP(ReadOnlySpan<byte> bytes, Span<int> suffixArray)
         {
-            int[] a = suffixArray;
+            var a = suffixArray;
             var s = bytes;
             int n = suffixArray.Length;
             int[] lcp = new int[n];
 
             int i, h;
-            int[] inv = new int[n];
+            var invBuffer = s_pool.Rent(n);
+            var inv = invBuffer.AsSpan(0, n);
 
             for (i = 0; i < n; i++)
             {
@@ -330,9 +334,9 @@ namespace Rhea.Compression.Dictionary
         /**
          * For debugging
          */
-        public static void Dump(TextWriter output, byte[] bytes, int[] suffixArray, int[] lcp)
+        public static void Dump(TextWriter output, Span<byte> bytes, Span<int> suffixArray, Span<int> lcp)
         {
-            int[] p = suffixArray;
+            var p = suffixArray;
             int n = p.Length;
 
             for (int i = 0; i < n; i++)
@@ -343,7 +347,11 @@ namespace Rhea.Compression.Dictionary
                     lcpString = string.Format("{0}\t", lcp[i]);
                 }
                 output.Write(suffixArray[i] + "\t" + lcpString + "\t");
-                output.Write(Encoding.UTF8.GetString(bytes, suffixArray[i], Math.Min(40, n - 1 - suffixArray[i])));
+#if NETSTANDARD2_1 || NETCOREAPP2_1
+                output.Write(Encoding.UTF8.GetString(bytes.Slice(suffixArray[i], Math.Min(40, n - 1 - suffixArray[i]))));
+#else
+                output.Write(Encoding.UTF8.GetString(bytes.ToArray(), suffixArray[i], Math.Min(40, n - 1 - suffixArray[i])));
+#endif
                 output.WriteLine();
             }
         }

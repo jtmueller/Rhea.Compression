@@ -6,33 +6,67 @@
 
 using System;
 using System.IO;
+using System.Buffers;
 
 namespace Rhea.Compression.Dictionary
 {
-    public class PrefixHash
+    public class PrefixHash : IDisposable
     {
         public static int PrefixLength = 4;
 
+        private readonly IMemoryOwner<int> _hashHandle;
+        private readonly IMemoryOwner<int> _heapHandle;
+        private readonly IMemoryOwner<byte>? _bufferHandle;
         private readonly ReadOnlyMemory<byte> _buffer;
-        private readonly int[] _hash;
-        private readonly int[] _heap;
+        private readonly Memory<int> _hash;
+        private readonly Memory<int> _heap;
+
+        public PrefixHash(Span<byte> buf, bool addToHash)
+        {
+            _bufferHandle = MemoryPool<byte>.Shared.Rent(buf.Length);
+            var buffer = _bufferHandle.Memory.Slice(0, buf.Length);
+            buf.CopyTo(buffer.Span);
+
+            _buffer = buffer;
+            int hashLen = (int)(1.75 * buf.Length);
+            _hashHandle = MemoryPool<int>.Shared.Rent(hashLen);
+            _hash = _hashHandle.Memory.Slice(0, hashLen);
+
+            _heapHandle = MemoryPool<int>.Shared.Rent(buf.Length);
+            _heap = _heapHandle.Memory.Slice(0, buf.Length);
+
+            Init(addToHash);
+        }
 
         public PrefixHash(ReadOnlyMemory<byte> buf, bool addToHash)
         {
             _buffer = buf;
-            _hash = new int[(int)(1.75 * buf.Length)];
-            for (int i = 0; i < _hash.Length; i++)
+            int hashLen = (int)(1.75 * buf.Length);
+            _hashHandle = MemoryPool<int>.Shared.Rent(hashLen);
+            _hash = _hashHandle.Memory.Slice(0, hashLen);
+
+            _heapHandle = MemoryPool<int>.Shared.Rent(buf.Length);
+            _heap = _heapHandle.Memory.Slice(0, buf.Length);
+
+            Init(addToHash);
+        }
+
+        private void Init(bool addToHash)
+        {
+            var hash = _hash.Span;
+            for (int i = 0; i < hash.Length; i++)
             {
-                _hash[i] = -1;
+                hash[i] = -1;
             }
-            _heap = new int[buf.Length];
-            for (int i = 0; i < _heap.Length; i++)
+
+            var heap = _heap.Span;
+            for (int i = 0; i < heap.Length; i++)
             {
-                _heap[i] = -1;
+                heap[i] = -1;
             }
             if (addToHash)
             {
-                for (int i = 0, count = buf.Length - PrefixLength; i < count; i++)
+                for (int i = 0, count = _buffer.Length - PrefixLength; i < count; i++)
                 {
                     Put(i);
                 }
@@ -42,19 +76,21 @@ namespace Rhea.Compression.Dictionary
         public void DumpState(TextWriter output)
         {
             output.WriteLine("Hash:");
+            var hash = _hash.Span;
             for (int i = 0; i < _hash.Length; i++)
             {
-                if (_hash[i] == -1)
+                if (hash[i] == -1)
                     continue;
-                output.WriteLine("hash[{0,3}] = {1,3};", i, _hash[i]);
+                output.WriteLine("hash[{0,3}] = {1,3};", i, hash[i]);
             }
 
             output.WriteLine("Heap:");
+            var heap = _heap.Span;
             for (int i = 0; i < _heap.Length; i++)
             {
-                if (_heap[i] == -1)
+                if (heap[i] == -1)
                     continue;
-                output.WriteLine("heap[{0,3}] = {1,3};", i, _heap[i]);
+                output.WriteLine("heap[{0,3}] = {1,3};", i, heap[i]);
             }
         }
 
@@ -68,8 +104,10 @@ namespace Rhea.Compression.Dictionary
         public void Put(int index)
         {
             int hi = HashIndex(_buffer.Span, index);
-            _heap[index] = _hash[hi];
-            _hash[hi] = index;
+            var heap = _heap.Span;
+            var hash = _hash.Span;
+            heap[index] = hash[hi];
+            hash[hi] = index;
         }
 
         public Match GetBestMatch(int index, ReadOnlySpan<byte> targetBuf)
@@ -90,7 +128,8 @@ namespace Rhea.Compression.Dictionary
             int maxLimit = Math.Min(255, targetBufLen - index);
 
             int targetHashIndex = HashIndex(targetBuf, index);
-            int candidateIndex = _hash[targetHashIndex];
+            int candidateIndex = _hash.Span[targetHashIndex];
+            var heap = _heap.Span;
             while (candidateIndex >= 0)
             {
                 int distance;
@@ -125,10 +164,17 @@ namespace Rhea.Compression.Dictionary
                     bestMatchIndex = candidateIndex;
                     bestMatchLength = matchLength;
                 }
-                candidateIndex = _heap[candidateIndex];
+                candidateIndex = heap[candidateIndex];
             }
 
             return new Match(bestMatchIndex, bestMatchLength);
+        }
+
+        public void Dispose()
+        {
+            _hashHandle.Dispose();
+            _heapHandle.Dispose();
+            _bufferHandle?.Dispose();
         }
 
         public readonly struct Match

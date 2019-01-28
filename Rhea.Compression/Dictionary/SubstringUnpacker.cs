@@ -7,38 +7,39 @@
 using System;
 using System.IO;
 using System.Text;
+using Collections.Pooled;
 
 namespace Rhea.Compression.Dictionary
 {
-
-    public class SubstringUnpacker
+    public class SubstringUnpacker : IDisposable
     {
-        private readonly byte[] _dictionary;
-        private readonly MemoryStream _buffer = new MemoryStream();
+        private readonly ReadOnlyMemory<byte> _dictionary;
+        private readonly PooledList<byte> _buffer = new PooledList<byte>();
 
-        public SubstringUnpacker(byte[] dictionary)
+        public SubstringUnpacker(ReadOnlyMemory<byte> dictionary)
         {
-            _dictionary = dictionary ?? Array.Empty<byte>();
+            _dictionary = dictionary;
         }
 
         public void Reset()
         {
-            _buffer.SetLength(0);
+            _buffer.Clear();
+            _buffer.TrimExcess();
         }
 
-        public byte[] UncompressedData()
+        public Span<byte> UncompressedData()
         {
-	        return _buffer.ToArray();
+            return _buffer.Span;
         } 
 
         public void EncodeLiteral(byte aByte)
         {
-            _buffer.WriteByte(aByte);
+            _buffer.Add(aByte);
         }
 
         public void EncodeSubstring(int offset, int length)
         {
-            var currentIndex = (int)_buffer.Length;
+            var currentIndex = _buffer.Count;
             if (currentIndex + offset < 0)
             {
                 int startDict = currentIndex + offset + _dictionary.Length;
@@ -53,26 +54,31 @@ namespace Rhea.Compression.Dictionary
 
                 if (endDict - startDict > 0)
                 {
-                    _buffer.Write(_dictionary, startDict, endDict - startDict);
+                    _buffer.AddRange(_dictionary.Span.Slice(startDict, endDict - startDict));
                 }
 
                 if (end > 0)
                 {
-                    var bytes = _buffer.GetBuffer();
+                    var bytes = _buffer.Span;
                     for (int i = 0; i < end; i++)
                     {
-                        _buffer.WriteByte(bytes[i]);
+                        _buffer.Add(bytes[i]);
                     }
                 }
             }
             else
             {
-                var bytes = _buffer.GetBuffer();
+                var bytes = _buffer.Span;
                 for (int i = 0; i < length; i++)
                 {
-                    _buffer.WriteByte(bytes[i + currentIndex + offset]);
+                    _buffer.Add(bytes[i + currentIndex + offset]);
                 }
             }
+        }
+
+        public void Dispose()
+        {
+            _buffer.Dispose();
         }
     }
 

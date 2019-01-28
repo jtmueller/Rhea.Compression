@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace Rhea.Compression
 {
-    public class CompressionTrainer
+    public class CompressionTrainer : IDisposable
     {
         private readonly DictionaryOptimizer _dictionaryOptimizer = new DictionaryOptimizer();
 
@@ -14,7 +14,14 @@ namespace Rhea.Compression
             _dictionaryOptimizer.Add(doc);
         }
 
-        public void TrainOn(byte[] doc)
+#if NETCOREAPP2_1
+        public void TrainOn(ReadOnlySpan<char> doc)
+        {
+            _dictionaryOptimizer.Add(doc);
+        }
+#endif
+
+        public void TrainOn(ReadOnlySpan<byte> doc)
         {
             _dictionaryOptimizer.Add(doc);
         }
@@ -22,17 +29,23 @@ namespace Rhea.Compression
         public CompressionHandler CreateHandler(int desiredLength = 1024 * 32)
         {
             var dictionary = _dictionaryOptimizer.Optimize(desiredLength);
-            var training = new SubstringPacker(dictionary);
-
-            var huffmanTableTrainer = new HuffmanTableTrainer();
-            foreach (var document in _dictionaryOptimizer.Documents)
+            using (var training = new SubstringPacker(dictionary))
             {
-                training.Pack(document, huffmanTableTrainer, null);
+                var huffmanTableTrainer = new HuffmanTableTrainer();
+                foreach (var document in _dictionaryOptimizer.Documents)
+                {
+                    training.Pack(document, huffmanTableTrainer, null);
+                }
+
+                var packer = huffmanTableTrainer.GeneratePacker();
+
+                return new CompressionHandler(dictionary, packer);
             }
+        }
 
-            var packer = huffmanTableTrainer.GeneratePacker();
-
-            return new CompressionHandler(dictionary, packer);
+        public void Dispose()
+        {
+            _dictionaryOptimizer.Dispose();
         }
 
         public class HuffmanTableTrainer : IPackerOutput
