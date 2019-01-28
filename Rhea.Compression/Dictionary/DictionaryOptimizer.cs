@@ -33,22 +33,22 @@ namespace Rhea.Compression.Dictionary
 
         public void Add(string doc)
         {
-#if NETSTANDARD2_1 || NETCOREAPP2_1
+#if NETCOREAPP2_1
             Add(doc.AsSpan());
 #else
             Add(Encoding.UTF8.GetBytes(doc));
 #endif
         }
 
-#if NETSTANDARD2_1 || NETCOREAPP2_1
+#if NETCOREAPP2_1
         public void Add(ReadOnlySpan<char> doc)
         {
             var maxBytes = Encoding.UTF8.GetMaxByteCount(doc.Length);
-            using (var memHandle = MemoryPool<byte>.Shared.Rent(maxBytes))
+            using (var bytes = new PooledList<byte>(maxBytes))
             {
-                var bytes = memHandle.Memory.Span;
-                var bytesWritten = Encoding.UTF8.GetBytes(doc, bytes);
-                Add(bytes.Slice(0, bytesWritten));
+                var span = bytes.AddSpan(maxBytes);
+                var bytesWritten = Encoding.UTF8.GetBytes(doc, span);
+                Add(span.Slice(0, bytesWritten));
             }
         }
 #endif
@@ -61,7 +61,7 @@ namespace Rhea.Compression.Dictionary
                 {
                     output.Write(_suffixArray[i] + "\t");
                     output.Write(_lcp[i] + "\t");
-#if NETSTANDARD2_1 || NETCOREAPP2_1
+#if NETCOREAPP2_1
                     var bytes = _stream.Span.Slice(_suffixArray[i], Math.Min(40, _stream.Count - _suffixArray[i]));
                     output.Write(Encoding.UTF8.GetString(bytes));
 #else
@@ -82,7 +82,7 @@ namespace Rhea.Compression.Dictionary
                     if (_substrings.Length(j) == 0)
                         continue;
                     output.Write(_substrings.Score(j) + "\t");
-#if NETSTANDARD2_1 || NETCOREAPP2_1
+#if NETCOREAPP2_1
                     var bytes = _stream.Span.Slice(_suffixArray[_substrings.Index(j)], Math.Min(40, _substrings.Length(j)));
                     output.Write(Encoding.UTF8.GetString(bytes));
 #else
@@ -175,7 +175,7 @@ namespace Rhea.Compression.Dictionary
             // of the destination.  For example if we pack " the " and then pack " and ", we should end up with " and the ", not " and  the ".
             for (l = Math.Min(length - 1, to.Length - toIndex); l > 0; l--)
             {
-                if (from.Slice(fromIndex + length - l, l).SequenceEqual(to.AsSpan(toIndex, length)))
+                if (from.Slice(fromIndex + length - l, l).SequenceEqual(to.AsSpan(toIndex, l)))
                 {
                     break;
                 }
@@ -189,7 +189,7 @@ namespace Rhea.Compression.Dictionary
         public string Suffix(int i)
         {
             var x = _suffixArray[i];
-#if NETSTANDARD2_1 || NETCOREAPP2_1
+#if NETCOREAPP2_1
             var bytes = _stream.Span.Slice(x, Math.Min(15, _stream.Count - x));
             return Encoding.UTF8.GetString(bytes);
 #else

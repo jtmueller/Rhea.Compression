@@ -347,7 +347,7 @@ namespace Rhea.Compression.Dictionary
                     lcpString = string.Format("{0}\t", lcp[i]);
                 }
                 output.Write(suffixArray[i] + "\t" + lcpString + "\t");
-#if NETSTANDARD2_1 || NETCOREAPP2_1
+#if NETCOREAPP2_1
                 output.Write(Encoding.UTF8.GetString(bytes.Slice(suffixArray[i], Math.Min(40, n - 1 - suffixArray[i]))));
 #else
                 output.Write(Encoding.UTF8.GetString(bytes.ToArray(), suffixArray[i], Math.Min(40, n - 1 - suffixArray[i])));

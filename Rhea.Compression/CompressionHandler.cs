@@ -60,7 +60,7 @@ namespace Rhea.Compression
 
         public int Compress(string input, Stream output)
         {
-#if NETSTANDARD2_1 || NETCOREAPP2_1
+#if NETCOREAPP2_1
             var encoding = Encoding.UTF8;
             var maxBytes = encoding.GetMaxByteCount(input.Length);
             using (var memoryHandle = MemoryPool<byte>.Shared.Rent(maxBytes))
@@ -74,7 +74,7 @@ namespace Rhea.Compression
 #endif
         }
 
-#if NETSTANDARD2_1 || NETCOREAPP2_1
+#if NETCOREAPP2_1
         public int Compress(ReadOnlySpan<char> input, Stream output)
         {
             var encoding = Encoding.UTF8;
@@ -88,7 +88,7 @@ namespace Rhea.Compression
         }
 #endif
 
-#if NETSTANDARD2_1 || NETCOREAPP2_1
+#if NETCOREAPP2_1
         public string CompressDebug(ReadOnlySpan<char> input)
         {
             var encoding = Encoding.UTF8;
